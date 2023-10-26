@@ -11,23 +11,17 @@ import math
 import json
 
 class AlignedDataset(BaseDataset):
-    def initialize(self, opt, mode='train'):
+    def initialize(self, opt):
         self.opt = opt
         self.root = opt.dataroot
         self.warproot = opt.warproot
-        self.resolution = opt.resolution
 
-        if self.resolution == 512:
-            self.fine_height=512
-            self.fine_width=384
-            self.radius=8
-        else:
-            self.fine_height=1024
-            self.fine_width=768
-            self.radius=16  
+        self.fine_height=512
+        self.fine_width=384
+        self.radius=8
 
         pair_txt_path = os.path.join(self.root, opt.image_pairs_txt)
-        if mode == 'train' and 'train' in opt.image_pairs_txt:
+        if 'train' in opt.image_pairs_txt:
             self.mode = 'train'
         else:
             self.mode = 'test'
@@ -41,9 +35,6 @@ class AlignedDataset(BaseDataset):
             p_name, c_name, c_type = line.strip().split()
             P_path = os.path.join(self.root, self.mode, 'image', p_name)
             C_path = os.path.join(self.root, self.mode, 'cloth', c_name)
-            if self.resolution == 1024:
-                P_path = P_path.replace('.png', '.jpg')
-                C_path = C_path.replace('.png', '.jpg')
             self.P_paths.append(P_path)
             self.C_paths.append(C_path)
             self.C_types.append(c_type)
@@ -107,18 +98,12 @@ class AlignedDataset(BaseDataset):
         bottom_mask = np.ones((h, w, 1), dtype=np.float32)
         if s_c > 0.1 and e_c > 0.1:
             up_mask = self.get_rectangle_mask(s_x, s_y, e_x, e_y, h, w)
-            if self.resolution == 512:
-                kernel = np.ones((50, 50), np.uint8)
-            else:
-                kernel = np.ones((100, 100), np.uint8)
+            kernel = np.ones((50, 50), np.uint8)
             up_mask = cv2.dilate(up_mask, kernel, iterations=1)
             up_mask = (up_mask > 0).astype(np.float32)[..., np.newaxis]
         if e_c > 0.1 and w_c > 0.1:
             bottom_mask = self.get_rectangle_mask(e_x, e_y, w_x, w_y, h, w)
-            if self.resolution == 512:
-                kernel = np.ones((30, 30), np.uint8)
-            else:
-                kernel = np.ones((60, 60), np.uint8)
+            kernel = np.ones((30, 30), np.uint8)
             bottom_mask = cv2.dilate(bottom_mask, kernel, iterations=1)
             bottom_mask = (bottom_mask > 0).astype(np.float32)[..., np.newaxis]
 
@@ -193,14 +178,14 @@ class AlignedDataset(BaseDataset):
         Pose_tensor = pose_map
 
         # person 3d pose
-        densepose_path = P_path.replace('/image/', '/densepose/')[:-4]+'.png'
+        densepose_path = P_path.replace('/image/', '/dense/')
         dense_mask = Image.open(densepose_path).convert('L')
         transform_for_mask = get_transform(self.opt, params, method=Image.NEAREST, normalize=False)
         dense_mask_tensor = transform_for_mask(dense_mask) * 255.0
         dense_mask_tensor = dense_mask_tensor[0:1, ...]
 
         # person parsing
-        parsing_path = P_path.replace('/image/', '/parse-bytedance/')[:-4]+'.png'
+        parsing_path = P_path.replace('/image/', '/parse/')
         parsing = Image.open(parsing_path).convert('L')
         parsing_tensor = transform_for_mask(parsing) * 255.0
 
@@ -244,7 +229,7 @@ class AlignedDataset(BaseDataset):
             preserve_mask_for_loss_np = np.array([(parsing_np==index).astype(int) for index in [1,2,3,4,7,8,9,10,12,13,14,17,18,19,20,23,26,27,28]])
             preserve_mask_for_loss_np = np.sum(preserve_mask_for_loss_np,axis=0)
         else:
-            pc_ratio = self.ratio_dict[self.C_paths[index].split('/')[-1][:-4]+'.png']
+            pc_ratio = self.ratio_dict[self.C_paths[index].split('/')[-1]]
             if pc_ratio < 0.9:
                 preserve_mask_for_loss_np = np.array([(parsing_np==index).astype(int) for index in [1,2,3,4,7,8,9,10,12,13,14,17,18,19,20,23,26,27,28]])
                 preserve_mask_for_loss_np = np.sum(preserve_mask_for_loss_np,axis=0)
@@ -279,11 +264,11 @@ class AlignedDataset(BaseDataset):
         C = Image.open(C_path).convert('RGB')
         C_tensor = transform_for_rgb(C)
 
-        CM_path = C_path.replace('/cloth/', '/cloth_mask-bytedance/')[:-4]+'.png'
+        CM_path = C_path.replace('/cloth/', '/cloth_mask/')
         CM = Image.open(CM_path).convert('L')
         CM_tensor = transform_for_mask(CM)
 
-        cloth_parsing_path = C_path.replace('/cloth/', '/cloth_parse-bytedance/')[:-4]+'.png'
+        cloth_parsing_path = C_path.replace('/cloth/', '/cloth_parse/')
         cloth_parsing = Image.open(cloth_parsing_path).convert('L')
         cloth_parsing_tensor = transform_for_mask(cloth_parsing) * 255.0
         cloth_parsing_tensor = cloth_parsing_tensor[0:1, ...]
@@ -296,17 +281,20 @@ class AlignedDataset(BaseDataset):
         flat_cloth_right_mask_np = (cloth_parsing_np==22).astype(int)
         flat_cloth_label_np = flat_cloth_left_mask_np * 1 + flat_cloth_middle_mask_np * 2 + flat_cloth_right_mask_np * 3
         flat_cloth_label_np = flat_cloth_label_np / 3
+        flat_cloth_mask_np = flat_cloth_left_mask_np + flat_cloth_middle_mask_np  + flat_cloth_right_mask_np
         
         flat_cloth_left_mask_tensor = torch.tensor(flat_cloth_left_mask_np.transpose(2, 0, 1)).float()
         flat_cloth_middle_mask_tensor = torch.tensor(flat_cloth_middle_mask_np.transpose(2, 0, 1)).float()
         flat_cloth_right_mask_tensor = torch.tensor(flat_cloth_right_mask_np.transpose(2, 0, 1)).float()
 
         flat_cloth_label_tensor = torch.tensor(flat_cloth_label_np.transpose(2, 0, 1)).float()
+        flat_cloth_mask_tensor = torch.tensor(flat_cloth_mask_np.transpose(2, 0, 1)).float()
 
         WC_tensor = None
         WE_tensor = None
         AMC_tensor = None
         ANL_tensor = None
+        ANLV_tensor = None
         if self.warproot:
             ### skin color
             face_mask_np = (parsing_np==14).astype(np.uint8)
@@ -331,15 +319,12 @@ class AlignedDataset(BaseDataset):
             AMC_tensor = AMC_tensor / 127.5 - 1.0
 
             # warped clothes
-            warped_name = C_type + '___' + P_path.split('/')[-1] + '___' + C_path.split('/')[-1][:-4]+'.png'
+            warped_name = C_type + '___' + P_path.split('/')[-1] + '___' + C_path.split('/')[-1]
             warped_path = os.path.join(self.warproot, warped_name)
             warped_result = Image.open(warped_path).convert('RGB')
             warped_result_np = np.array(warped_result)
 
-            if self.resolution == 512:
-                w = 384
-            else:
-                w = 768
+            w = 384
             warped_cloth_np = warped_result_np[:,-2*w:-w,:]
             warped_parse_np = warped_result_np[:,-w:,:]
 
@@ -356,10 +341,17 @@ class AlignedDataset(BaseDataset):
             arms_neck_label = (warped_parse_np==4).astype(np.uint8) * 1 + \
                               (warped_parse_np==5).astype(np.uint8) * 2 + \
                               (warped_parse_np==6).astype(np.uint8) * 3
+            arms_neck_label_vis = (warped_parse_np==4).astype(np.uint8) * 4 + \
+                              (warped_parse_np==5).astype(np.uint8) * 5 + \
+                              (warped_parse_np==6).astype(np.uint8) * 6
 
             arms_neck_label = Image.fromarray(arms_neck_label).convert('L')
             ANL_tensor = transform_for_mask(arms_neck_label) * 255.0 / 3.0
             ANL_tensor = ANL_tensor[0:1,...]
+
+            arms_neck_label_vis = Image.fromarray(arms_neck_label_vis).convert('L')
+            ANLV_tensor = transform_for_mask(arms_neck_label_vis) * 255.0
+            ANLV_tensor = ANLV_tensor[0:1,...]
 
         input_dict = {
             'image': P_tensor, 'pose':Pose_tensor , 'densepose':dense_mask_tensor,
@@ -378,12 +370,14 @@ class AlignedDataset(BaseDataset):
             'c_type': C_type, 
             'color_path': C_path,
             'img_path': P_path,
+            'flat_cloth_mask':flat_cloth_mask_tensor,
         }
         if WC_tensor is not None:
             input_dict['warped_cloth'] = WC_tensor
             input_dict['warped_edge'] = WE_tensor
             input_dict['arms_color'] = AMC_tensor
             input_dict['arms_neck_lable'] = ANL_tensor
+            input_dict['arms_neck_label_vis'] = ANLV_tensor
 
         return input_dict
 
