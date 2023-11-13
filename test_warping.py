@@ -9,6 +9,9 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 import cv2
 import tqdm
+import json
+import boto3
+from random import randrange
 
 opt = TrainOptions().parse()
 os.makedirs(os.path.join(opt.outputs_dir, opt.name), exist_ok=True)
@@ -229,3 +232,37 @@ for ii, data in enumerate(tqdm.tqdm(train_loader)):
             person_id = data['img_path'][bb].split('/')[-1]
             save_path = os.path.join(opt.outputs_dir, opt.name, c_type+'___'+person_id+'___'+cloth_id[:-4]+'.png')
             cv2.imwrite(save_path, bgr)
+
+# Send message to AWS SNS dresscode-gp-vton-tryon topic to invoke tryon step
+verbose_option = ""
+tf_log_option = ""
+if bool(opt.verbose):
+    verbose_option = "verbose"
+if bool(opt.tf_log):
+    tf_log_option = "tf_log"
+message = {
+	"nproc_per_node": "1",
+    "master_port": randrange(4000, 65536),
+    "name": opt.name,
+    "resize_or_crop": opt.resize_or_crop,
+    "verbose": verbose_option,
+    "tf_log": tf_log_option,
+    "dataset": opt.dataset,
+    "resolution": opt.resolution,
+    "batchSize": opt.batchSize,
+    "num_gpus": opt.num_gpus,
+    "label_nc": opt.label_nc,
+    "launcher": opt.launcher,
+    "relative_path_to_dataroot": ".",
+    "relative_path_to_image_pairs_txt": opt.image_pairs_txt,
+    "relative_path_to_warproot": opt.name,
+    "local_rank": opt.local_rank,
+    "nThreads": opt.nThreads,
+    "relative_path_to_outputs_dir": "."
+}
+client = boto3.client('sns')
+response = client.publish(
+    TargetArn="arn:aws:sns:us-east-2:466393094129:dresscode-gp-vton-tryon",
+    Message=json.dumps({'default': json.dumps(message)}),
+    MessageStructure='json'
+)

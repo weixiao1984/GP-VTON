@@ -6,6 +6,10 @@
 #
 absl-py==1.4.0
     # via tensorboard
+boto3==1.28.85
+    # via AWS
+botocore==1.31.85
+    # via boto3
 cachetools==5.3.1
     # via google-auth
 certifi==2023.7.22
@@ -40,6 +44,8 @@ importlib-resources==6.0.1
     # via matplotlib
 jinja2==3.1.2
     # via torch
+jmespath==1.0.1
+    # via boto3
 kiwisolver==1.4.5
     # via matplotlib
 markdown==3.4.4
@@ -103,6 +109,8 @@ requests-oauthlib==1.3.1
     # via google-auth-oauthlib
 rsa==4.9
     # via google-auth
+s3transfer==0.7.0
+    # via boto3
 scipy==1.11.2
     # via -r GP-VTON/requirements.in
 six==1.16.0
