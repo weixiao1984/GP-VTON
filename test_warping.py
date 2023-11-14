@@ -235,9 +235,9 @@ for ii, data in enumerate(tqdm.tqdm(train_loader)):
 
 # Send message to AWS SNS dresscode-gp-vton-tryon topic to invoke tryon step
 message = {
-	"nproc_per_node": "1",
+    "nproc_per_node": "1",
     "master_port": str(randrange(4000, 65536)),
-    "name": opt.name,
+    "name": opt.name.replace("warping", "tryon"),
     "resize_or_crop": opt.resize_or_crop,
     "verbose": str(opt.verbose),
     "tf_log": str(opt.tf_log),
@@ -247,12 +247,12 @@ message = {
     "num_gpus": str(opt.num_gpus),
     "label_nc": str(opt.label_nc),
     "launcher": opt.launcher,
-    "relative_path_to_dataroot": ".",
-    "relative_path_to_image_pairs_txt": opt.image_pairs_txt,
-    "relative_path_to_warproot": opt.name,
+    "dataroot_dir": opt.dataroot,
+    "image_pairs_txt_dir": opt.image_pairs_txt,
+    "warproot_dir": str(os.path.join(opt.outputs_dir, opt.name)),
     "local_rank": str(opt.local_rank),
     "nThreads": str(opt.nThreads),
-    "relative_path_to_outputs_dir": "."
+    "outputs_dir": opt.outputs_dir
 }
 client = boto3.client('sns', region_name='us-east-2')
 response = client.publish(
