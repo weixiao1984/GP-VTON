@@ -234,19 +234,13 @@ for ii, data in enumerate(tqdm.tqdm(train_loader)):
             cv2.imwrite(save_path, bgr)
 
 # Send message to AWS SNS dresscode-gp-vton-tryon topic to invoke tryon step
-verbose_option = ""
-tf_log_option = ""
-if bool(opt.verbose):
-    verbose_option = "verbose"
-if bool(opt.tf_log):
-    tf_log_option = "tf_log"
 message = {
 	"nproc_per_node": "1",
     "master_port": randrange(4000, 65536),
     "name": opt.name,
     "resize_or_crop": opt.resize_or_crop,
-    "verbose": verbose_option,
-    "tf_log": tf_log_option,
+    "verbose": bool(opt.verbose),
+    "tf_log": bool(opt.tf_log),
     "dataset": opt.dataset,
     "resolution": opt.resolution,
     "batchSize": opt.batchSize,
