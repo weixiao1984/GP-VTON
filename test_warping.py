@@ -254,7 +254,7 @@ message = {
     "nThreads": opt.nThreads,
     "relative_path_to_outputs_dir": "."
 }
-client = boto3.client('sns')
+client = boto3.client('sns', region_name='us-east-2')
 response = client.publish(
     TargetArn="arn:aws:sns:us-east-2:466393094129:dresscode-gp-vton-tryon",
     Message=json.dumps({'default': json.dumps(message)}),
