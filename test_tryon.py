@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 import cv2
 from tqdm import tqdm
+import websocket
+import json
 
 opt = TrainOptions().parse()
 os.makedirs(os.path.join(opt.outputs_dir, opt.name),exist_ok=True)
@@ -45,6 +47,7 @@ if opt.isTrain and len(opt.gpu_ids):
     model_gen = torch.nn.parallel.DistributedDataParallel(gen_model, device_ids=[opt.local_rank])
 
 model_gen.eval()
+save_paths = []
 
 for data in tqdm(train_loader):
     real_image = data['image'].cuda()
@@ -80,3 +83,11 @@ for data in tqdm(train_loader):
         c_type = data['c_type'][bb]
         save_path = os.path.join(opt.outputs_dir, opt.name, c_type+'___'+person_id+'___'+cloth_id[:-4]+'.png')
         cv2.imwrite(save_path, bgr)
+        save_paths.append(save_path)
+
+ws = websocket.WebSocket()
+ws.connect('wss://snxlf627sc.execute-api.us-east-2.amazonaws.com/production/')
+ws.send(json.dumps({"action": "sendmessage", "msg": {"paths": save_paths}}))
+# Wait for client to send over ack message
+ws.recv()
+ws.close()
